@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -18,7 +20,8 @@ import java.util.Date
 import java.util.Locale
 
 enum class NoxExpression {
-    Normal, Happy, Sad, Angry, Thinking, Surprised, Sleepy, Sleep, Yawning, Proud
+    Normal, Happy, Sad, Angry, Thinking, Surprised, Sleepy, Sleep, Yawning, Proud,
+    IncomeSuccess, ExpenseSuccess, TargetAchieved, Warning, Danger
 }
 
 class MainViewModel(private val repository: AppRepository) : ViewModel() {
@@ -28,6 +31,24 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    val settings: StateFlow<com.example.data.Settings?> = repository.settings.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
+
+    fun updateSettings(newSettings: com.example.data.Settings) {
+        viewModelScope.launch {
+            repository.insertSettings(newSettings)
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch {
+            repository.clearTransactions()
+        }
+    }
 
     private val _currentTime = MutableStateFlow("")
     val currentTime: StateFlow<String> = _currentTime.asStateFlow()
@@ -58,8 +79,31 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
     private val _totalBalance = MutableStateFlow(0L)
     val totalBalance: StateFlow<Long> = _totalBalance.asStateFlow()
 
+    private val _uiAction = kotlinx.coroutines.flow.MutableSharedFlow<String>()
+    val uiAction = _uiAction.asSharedFlow()
+
+    private val quotes = listOf(
+        "SCANNING FINANCIAL SECTOR...",
+        "STAY CYBER SECURE.",
+        "UPGRADING SAVINGS PROTOCOL.",
+        "ENCRYPTING YOUR WEALTH.",
+        "KEEP GRINDING IN THE MATRIX.",
+        "CREDITS OPTIMIZED.",
+        "SYSTEM RUNNING AT 100%.",
+        "ROUTING MORE FUNDS...",
+        "SAVINGS MODULE ACTIVE.",
+        "FUNDS SECURED.",
+        "ANALYZING MARKET TRENDS...",
+        "STAY FROSTY.",
+        "AWAITING INPUT."
+    )
+
+    private val _noxQuote = MutableStateFlow<String?>(null)
+    val noxQuote: StateFlow<String?> = _noxQuote.asStateFlow()
+
     init {
         startClock()
+        startQuotes()
         viewModelScope.launch {
             transactions.collect { list ->
                 val balance = list.sumOf { 
@@ -72,7 +116,7 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
                 _totalBalance.value = balance
                 
                 if (list.isNotEmpty() && balance < 50000 && balance > 0) { // arbitrary threshold for almost empty
-                    setExpression(NoxExpression.Sad, 3000)
+                    setExpression(NoxExpression.Warning, 3000)
                 }
             }
         }
@@ -88,7 +132,7 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
                 if (idleTime >= 20) {
                     if (_noxExpression.value != NoxExpression.Sleep) {
                         _noxExpression.value = NoxExpression.Sleep
-                        if (_noxMessage.value == "SYSTEM ONLINE") _noxMessage.value = "Zzz..."
+                        if (_noxMessage.value == "SYSTEM ONLINE") _noxMessage.value = "tidur dulu bro"
                     }
                 } else if (idleTime in 18..19) {
                     if (_noxExpression.value != NoxExpression.Yawning) {
@@ -105,8 +149,29 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
         }
     }
 
+    private fun startQuotes() {
+        viewModelScope.launch {
+            while (true) {
+                delay((10000L..25000L).random())
+                if (_noxExpression.value == NoxExpression.Normal || _noxExpression.value == NoxExpression.Thinking) {
+                    _noxQuote.value = quotes.random()
+                    delay(5000L)
+                    _noxQuote.value = null
+                }
+            }
+        }
+    }
+
     fun processCommand(command: String) {
         val lowerCommand = command.lowercase(Locale.getDefault())
+        if (lowerCommand.contains("riwayat") || lowerCommand.contains("history")) {
+            viewModelScope.launch { _uiAction.emit("SHOW_HISTORY") }
+            return
+        }
+        if (lowerCommand.contains("pengaturan") || lowerCommand.contains("setting")) {
+            viewModelScope.launch { _uiAction.emit("SHOW_SETTINGS") }
+            return
+        }
         viewModelScope.launch {
             try {
                 // simple NLP
@@ -114,29 +179,35 @@ class MainViewModel(private val repository: AppRepository) : ViewModel() {
                 if (lowerCommand.contains("menabung") || lowerCommand.contains("nabung")) {
                     if (amount > 0) {
                         repository.insertTransaction(Transaction(type = "Tabungan", amount = amount, description = command))
-                        setExpression(NoxExpression.Happy, 3000)
+                        setExpression(NoxExpression.IncomeSuccess, 1200)
                         triggerParticleEffect()
                     }
                 } else if (lowerCommand.contains("ambil tabungan") || lowerCommand.contains("mengambil")) {
                     if (amount > 0) {
                         repository.insertTransaction(Transaction(type = "Ambil Tabungan", amount = amount, description = command))
-                        setExpression(NoxExpression.Angry, 2000)
+                        setExpression(NoxExpression.ExpenseSuccess, 1000)
                     }
                 } else if (lowerCommand.contains("pemasukan")) {
                     if (amount > 0) {
                         repository.insertTransaction(Transaction(type = "Pemasukan", amount = amount, description = command))
-                        setExpression(NoxExpression.Happy, 2000)
+                        setExpression(NoxExpression.IncomeSuccess, 1200)
                     }
                 } else if (lowerCommand.contains("pengeluaran") || lowerCommand.contains("beli") || lowerCommand.contains("bayar")) {
                     if (amount > 0) {
                         repository.insertTransaction(Transaction(type = "Pengeluaran", amount = amount, description = command))
-                        setExpression(NoxExpression.Thinking, 2000)
+                        setExpression(NoxExpression.ExpenseSuccess, 1000)
                     }
+                } else if (lowerCommand.contains("target")) {
+                    setExpression(NoxExpression.TargetAchieved, 2000)
+                } else if (lowerCommand.contains("error") || lowerCommand.contains("gagal") || lowerCommand.contains("kurang")) {
+                    setExpression(NoxExpression.Warning, 2000)
+                } else if (lowerCommand.contains("bahaya") || lowerCommand.contains("hapus semua")) {
+                    setExpression(NoxExpression.Danger, 3000)
                 } else {
-                    setExpression(NoxExpression.Surprised, 2000)
+                    setExpression(NoxExpression.Thinking, 2000)
                 }
             } catch (e: Exception) {
-                setExpression(NoxExpression.Sad, 2000)
+                setExpression(NoxExpression.Warning, 2000)
             }
         }
     }

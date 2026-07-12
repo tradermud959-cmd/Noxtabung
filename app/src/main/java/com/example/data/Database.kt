@@ -36,7 +36,14 @@ data class Settings(
     @PrimaryKey val id: Int = 1,
     val darkTheme: Boolean = true,
     val pinEnabled: Boolean = false,
-    val pinHash: String? = null
+    val pinHash: String? = null,
+    val neonGlow: Boolean = true,
+    val noxEyeAnimation: Boolean = true,
+    val idleAnimation: Boolean = true,
+    val noxVolume: Float = 0.8f,
+    val soundEffects: Boolean = true,
+    val hapticFeedback: Boolean = true,
+    val fingerprintLogin: Boolean = false
 )
 
 @Dao
@@ -81,7 +88,7 @@ interface SettingsDao {
     suspend fun insertSettings(settings: Settings)
 }
 
-@Database(entities = [Transaction::class, TargetSaving::class, Settings::class], version = 1, exportSchema = false)
+@Database(entities = [Transaction::class, TargetSaving::class, Settings::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun targetSavingDao(): TargetSavingDao
@@ -97,7 +104,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "nox_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

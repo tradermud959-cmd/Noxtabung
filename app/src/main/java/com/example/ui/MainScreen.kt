@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -53,10 +55,25 @@ fun MainScreen(viewModel: MainViewModel) {
     
     var showBackupDialog by remember { mutableStateOf(false) }
     var showRestoreDialog by remember { mutableStateOf(false) }
+    var showHistoryPanel by remember { mutableStateOf(false) }
+    var showSettingsPanel by remember { mutableStateOf(false) }
     var commandText by remember { mutableStateOf("") }
     var showBottomSheet by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
     val focusRequester = remember { FocusRequester() }
+    val transactions by viewModel.transactions.collectAsState()
+    val settings by viewModel.settings.collectAsState()
+    val noxQuote by viewModel.noxQuote.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.uiAction.collect { action ->
+            if (action == "SHOW_HISTORY") {
+                showHistoryPanel = true
+            } else if (action == "SHOW_SETTINGS") {
+                showSettingsPanel = true
+            }
+        }
+    }
 
     if (showBackupDialog) {
         AlertDialog(
@@ -189,6 +206,36 @@ fun MainScreen(viewModel: MainViewModel) {
                 modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = noxQuote != null,
+                    enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 2 },
+                    exit = fadeOut(tween(300)) + slideOutVertically(tween(300)) { it / 2 }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .padding(bottom = 16.dp)
+                            .background(
+                                color = SurfaceDark.copy(alpha = 0.8f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .border(1.dp, EmeraldNeon.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = noxQuote ?: "",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                color = EmeraldNeon,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                shadow = androidx.compose.ui.graphics.Shadow(
+                                    color = EmeraldNeon.copy(alpha = 0.5f),
+                                    blurRadius = 6f
+                                )
+                            )
+                        )
+                    }
+                }
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -359,6 +406,10 @@ fun MainScreen(viewModel: MainViewModel) {
                     showBackupDialog = true
                 } else if (prefix == "DIALOG_RESTORE") {
                     showRestoreDialog = true
+                } else if (prefix == "SHOW_HISTORY") {
+                    showHistoryPanel = true
+                } else if (prefix == "SHOW_SETTINGS") {
+                    showSettingsPanel = true
                 } else if (prefix.isNotEmpty()) {
                     commandText = prefix
                     viewModel.setNoxMessage(prompt)
@@ -368,6 +419,30 @@ fun MainScreen(viewModel: MainViewModel) {
                 }
             }
         }
+    }
+
+    AnimatedVisibility(
+        visible = showHistoryPanel,
+        enter = fadeIn(tween(300)) + androidx.compose.animation.scaleIn(tween(300), initialScale = 0.9f),
+        exit = fadeOut(tween(300)) + androidx.compose.animation.slideOutVertically(tween(300)) { it / 2 }
+    ) {
+        HistoryPanel(transactions = transactions, onClose = { showHistoryPanel = false })
+    }
+
+    AnimatedVisibility(
+        visible = showSettingsPanel,
+        enter = fadeIn(tween(250)) + androidx.compose.animation.scaleIn(tween(250), initialScale = 0.95f),
+        exit = fadeOut(tween(250)) + androidx.compose.animation.slideOutVertically(tween(250)) { it / 2 }
+    ) {
+        SettingsPanel(
+            settings = settings,
+            onUpdateSettings = { viewModel.updateSettings(it) },
+            onBackup = { showBackupDialog = true },
+            onRestore = { showRestoreDialog = true },
+            onExport = { viewModel.setNoxMessage("Fitur export akan segera hadir.") },
+            onClearHistory = { viewModel.clearHistory() },
+            onClose = { showSettingsPanel = false }
+        )
     }
 }
 
@@ -395,6 +470,8 @@ fun CommandList(onCommandSelected: (String, String) -> Unit) {
                             "Tambah Pengeluaran" -> onCommandSelected("pengeluaran ", "Masukkan nominal dan keterangan.\nContoh: pengeluaran 25000 makan")
                             "Tambah Tabungan" -> onCommandSelected("tabungan ", "Masukkan nominal tabungan.\nContoh: tabungan 50000")
                             "Ambil Tabungan" -> onCommandSelected("ambil ", "Masukkan nominal yang ingin diambil.\nContoh: ambil 10000")
+                            "Riwayat" -> onCommandSelected("SHOW_HISTORY", "")
+                            "Pengaturan" -> onCommandSelected("SHOW_SETTINGS", "")
                             "Backup" -> onCommandSelected("DIALOG_BACKUP", "")
                             "Restore" -> onCommandSelected("DIALOG_RESTORE", "")
                             else -> onCommandSelected("", "Fitur $command akan segera hadir.")
