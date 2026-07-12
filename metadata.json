@@ -1,0 +1,6 @@
+{
+  "name": "Nox Tabungku",
+  "description": "Cyber Minimalist offline savings tracker with an AI-like character Nox.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
